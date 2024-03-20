@@ -1,0 +1,245 @@
+# Experiments
+
+```elixir
+Mix.install([
+  {:httpoison, "~> 2.2.1"},
+  {:jason, "~> 1.4"},
+  {:kino, "~> 0.12.0"}
+])
+```
+
+## Config
+
+```elixir
+notebook_file_path = __ENV__.file
+notebook_path = Path.dirname(notebook_file_path) <> "/"
+```
+
+```elixir
+ncbi_key = "---"
+ncbi_email = "---"
+:ok
+```
+
+```elixir
+base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+esearch_url = base_url <> "/esearch.fcgi"
+efetch_url = base_url <> "/efetch.fcgi"
+esummery_url = base_url <> "/esummary.fcgi"
+elink_url = base_url <> "/elink.fcgi"
+:ok
+```
+
+<!-- livebook:{"branch_parent_index":0} -->
+
+## Genes
+
+```elixir
+ncbi_db = "nucleotide"
+```
+
+```elixir
+search_params = [
+  {"db", ncbi_db},
+  {"term", ~s("timeless"[Gene Name] AND insects[Organism])},
+  {"usehistory", "y"},
+  {"retstart", 42 * 0},
+  {"retmax", 42},
+  {"email", ncbi_email},
+  {"ncbi_key", ncbi_key}
+]
+
+{:ok, search_response} = HTTPoison.get(esearch_url, [], params: search_params)
+```
+
+```elixir
+File.write(notebook_path <> "search_result.xml", search_response.body)
+```
+
+```elixir
+web_env =
+  Regex.run(~r/<WebEnv>(.*?)<\/WebEnv>/, search_response.body, capture: :first) |> List.first()
+
+query_key =
+  Regex.run(~r/<QueryKey>(.*?)<\/QueryKey>/, search_response.body, capture: :first)
+  |> List.first()
+
+web_env = Regex.replace(~r/<[^>]*>/, web_env, "")
+query_key = Regex.replace(~r/<[^>]*>/, query_key, "")
+
+%{"WebEnv" => web_env, "QueryKey" => query_key}
+```
+
+```elixir
+fetch_params = [
+  {"db", ncbi_db},
+  {"query_key", query_key},
+  {"WebEnv", web_env},
+  {"rettype", "fasta"},
+  {"retmode", "text"},
+  {"email", ncbi_email},
+  {"ncbi_key", ncbi_key}
+]
+
+{:ok, fetch_response} = HTTPoison.get(efetch_url, [], params: fetch_params)
+```
+
+```elixir
+File.write(notebook_path <> "result.fasta", fetch_response.body)
+```
+
+<!-- livebook:{"branch_parent_index":0} -->
+
+## Gene Downloader
+
+```elixir
+form =
+  Kino.Control.form(
+    [
+      name: Kino.Input.text("Name")
+    ],
+    submit: "Submit"
+  )
+
+Kino.listen(form, fn event ->
+  IO.inspect(event)
+end)
+
+form
+```
+
+```elixir
+gene_id = "113500526"
+```
+
+```elixir
+defmodule Params do
+  @default_params %{
+    "db" => "nucleotide",
+    "rettype" => "fasta",
+    "retmode" => "text"
+  }
+
+  # Function to create new parameters map with defaults
+  def new_params(), do: @default_params
+
+  def new_params(map) do
+    @default_params
+    |> Map.merge(map)
+  end
+
+  def new_params(email, key) do
+    @default_params
+    |> Map.put("email", email)
+    |> Map.put("ncbi_key", key)
+  end
+
+  def link_gene(params, gene_id, from, to, link_name) do
+    Map.merge(params, %{
+      "dbfrom" => from,
+      "db" => to,
+      "linkname" => link_name,
+      "id" => gene_id,
+      "retmode" => "json"
+    })
+  end
+
+  def sequence(params, nucleotide_id) do
+    @default_params
+    |> Map.put("id", nucleotide_id)
+  end
+
+  def put(params, key, value) do
+    Map.put(params, key, value)
+  end
+
+  def remove(params, key) do
+    Map.delete(params, key)
+  end
+
+  def to_list(params) do
+    Enum.map(params, fn {k, v} -> {k, to_string(v)} end)
+  end
+end
+```
+
+```elixir
+Params.new_params(ncbi_email, ncbi_key)
+|> Params.put("hello", "test")
+|> Params.link_gene(gene_id, "gene", "nuccore", "gene_nuccore")
+```
+
+```elixir
+defmodule NCBI do
+  @base_url "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+  @esearch_url base_url <> "/esearch.fcgi"
+  @efetch_url base_url <> "/efetch.fcgi"
+  @esummery_url base_url <> "/esummary.fcgi"
+  @elink_url base_url <> "/elink.fcgi"
+
+  defstruct [:email, :key]
+
+  def new_ncbi(email, key) do
+    %NCBI{email: email, key: key}
+  end
+
+  def get_links(%NCBI{} = ncbi, gene_id, from, to, link_name) do
+    params =
+      Params.new_params(ncbi.email, ncbi.key)
+      |> Params.link_gene(gene_id, from, to, link_name)
+
+    case HTTPoison.get(@elink_url, [], params: params) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        {:ok, decoded} = Jason.decode(body)
+
+        ids =
+          get_in(decoded, ["linksets", Access.all(), "linksetdbs", Access.all(), "links"])
+          |> List.flatten()
+
+        {:ok, ids}
+
+      {:ok, %HTTPoison.Response{status_code: status_code}} ->
+        {:error, "Failed to fetch link IDs. Status code: #{status_code}"}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        {:error, "HTTP request failed: #{reason}"}
+    end
+  end
+
+  def get_sequence(%NCBI{} = ncbi, nucleotide_id) do
+    params =
+      Params.new_params(ncbi.email, ncbi.key)
+      |> Params.sequence(nucleotide_id)
+
+    case HTTPoison.get(@efetch_url, [], params: params) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        {:ok, body}
+
+      {:ok, %HTTPoison.Response{status_code: status_code}} ->
+        {:error, "Failed to fetch link IDs. Status code: #{status_code}"}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        {:error, "HTTP request failed: #{reason}"}
+    end
+  end
+end
+```
+
+```elixir
+{:ok, ids} =
+  NCBI.new_ncbi(ncbi_email, ncbi_key)
+  |> NCBI.get_links(gene_id, "gene", "nuccore", "gene_nuccore")
+```
+
+```elixir
+fetch_params = [
+  {"db", "nucleotide"},
+  {"id", gene_id},
+  {"rettype", "fasta"},
+  {"retmode", "text"},
+  {"email", ncbi_email},
+  {"ncbi_key", ncbi_key}
+]
+
+{:ok, fetch_response} = HTTPoison.get(efetch_url, [], params: fetch_params)
+```
