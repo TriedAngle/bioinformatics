@@ -95,6 +95,8 @@ fastas = Runner.download_sequence("113500526", :protein)
 ```
 
 ```elixir
+{:ok, agent} = Agent.start_link(fn -> [] end)
+
 display = Kino.Frame.new()
 
 form =
@@ -122,7 +124,7 @@ Kino.listen(form, fn event ->
   Kino.Frame.append(output, "Done... #{elapsed_time}ms")
   Kino.Frame.append(output, res)
 
-  # Agent.update(agent, fn _ -> res end)
+  Agent.update(agent, fn _ -> res end)
 end)
 
 # example 113500526
