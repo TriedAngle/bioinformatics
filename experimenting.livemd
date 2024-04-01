@@ -80,19 +80,19 @@ end
 
 <!-- livebook:{"branch_parent_index":0} -->
 
-## Download from Search
+## Search
 
 ```elixir
 default_input = ~s("CRY1"[Gene Name] AND insects[Organism])
 kino_query = Kino.Input.textarea("Query", default: default_input) |> Kino.render()
+kino_filter = Kino.Input.checkbox("Filter", default: false) |> Kino.render()
+kino_file_name = Kino.Input.text("Filename", default: "result.fasta") |> Kino.render()
 Kino.nothing()
 ```
 
 ```elixir
 query = Kino.Input.read(kino_query)
-```
 
-```elixir
 downloaded_fastas =
   Runner.download_sequence(
     query,
@@ -103,7 +103,7 @@ downloaded_fastas =
 ```
 
 ```elixir
-do_filter = false
+do_filter = Kino.Input.read(kino_filter)
 filter_fn = fn entry -> !String.contains?(entry.meta, "whole genome") end
 
 fastas =
@@ -115,13 +115,14 @@ fastas =
 ```
 
 ```elixir
+file_name = Kino.Input.read(kino_file_name)
 fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
-File.write("#{notebook_path}downloads/query_cry1.fasta", fasta_string)
+File.write("#{notebook_path}downloads/#{file_name}", fasta_string)
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
 
-## Download Nucleotid from Gene ID
+## Nucleotid from Gene ID
 
 ```elixir
 gene_id = "113500526"
@@ -147,7 +148,7 @@ File.write("#{notebook_path}downloads/gene2nuc_#{gene_id}.fasta", fasta_string)
 
 <!-- livebook:{"branch_parent_index":0} -->
 
-## Download Protein from Gene ID
+## Protein from Gene ID
 
 ```elixir
 gene_id = "113500526"
