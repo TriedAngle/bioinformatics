@@ -85,7 +85,7 @@ end
 ```elixir
 downloaded_fastas =
   Runner.download_sequence(
-    ~s("CRY1"[Gene Name] AND insects[Organism]),
+    ~s("CRY"[Gene Name] AND insects[Organism]),
     :search,
     db: "protein",
     retmax: 200
@@ -93,7 +93,20 @@ downloaded_fastas =
 ```
 
 ```elixir
-File.write("#{notebook_path}downloads/query.fasta", downloaded_fastas)
+do_filter = false
+filter_fn = fn entry -> !String.contains?(entry.meta, "whole genome") end
+
+fastas =
+  if do_filter do
+    downloaded_fastas |> Enum.filter(filter_fn)
+  else
+    downloaded_fastas
+  end
+```
+
+```elixir
+fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
+File.write("#{notebook_path}downloads/query.fasta", fasta_string)
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
