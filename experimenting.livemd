@@ -59,6 +59,22 @@ defmodule Runner do
     end)
     |> Enum.to_list()
   end
+
+  def download_sequence(query, :search, opts \\ []) do
+    {:ok, _json, {web_env, query_key, _ids}} =
+      NCBI.search(query, opts)
+
+    opts = Keyword.merge([webenv: web_env, query_key: query_key], opts)
+    {:ok, fasta_all} = NCBI.fetch(opts)
+
+    fasta_all
+    |> String.trim("\n")
+    |> String.split("\n\n")
+    |> Enum.map(fn fasta ->
+      {:ok, parse} = Fasta.parse(fasta)
+      parse
+    end)
+  end
 end
 ```
 
@@ -67,19 +83,17 @@ end
 ## Download from Search
 
 ```elixir
-{:ok, json, {web_env, query_key, _ids}} =
-  NCBI.search(~s("timeless"[Gene Name] AND insects[Organism]), db: "protein", retmax: 200)
-
-{web_env, query_key}
+downloaded_fastas =
+  Runner.download_sequence(
+    ~s("CRY1"[Gene Name] AND insects[Organism]),
+    :search,
+    db: "protein",
+    retmax: 200
+  )
 ```
 
 ```elixir
-{:ok, fasta} = NCBI.fetch(webenv: web_env, query_key: query_key, db: "protein", retmax: 200)
-fasta
-```
-
-```elixir
-File.write(notebook_path <> "result.fasta", fasta)
+File.write("#{notebook_path}downloads/query.fasta", downloaded_fastas)
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
