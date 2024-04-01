@@ -83,9 +83,19 @@ end
 ## Download from Search
 
 ```elixir
+default_input = ~s("CRY1"[Gene Name] AND insects[Organism])
+kino_query = Kino.Input.textarea("Query", default: default_input) |> Kino.render()
+Kino.nothing()
+```
+
+```elixir
+query = Kino.Input.read(kino_query)
+```
+
+```elixir
 downloaded_fastas =
   Runner.download_sequence(
-    ~s("CRY"[Gene Name] AND insects[Organism]),
+    query,
     :search,
     db: "protein",
     retmax: 200
@@ -106,7 +116,7 @@ fastas =
 
 ```elixir
 fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
-File.write("#{notebook_path}downloads/query.fasta", fasta_string)
+File.write("#{notebook_path}downloads/query_cry1.fasta", fasta_string)
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
