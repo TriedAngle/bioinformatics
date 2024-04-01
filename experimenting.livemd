@@ -22,30 +22,6 @@ alias Biolex.Fasta, as: Fasta
 env
 ```
 
-<!-- livebook:{"branch_parent_index":0} -->
-
-## Download from Search
-
-```elixir
-{:ok, json, {web_env, query_key, _ids}} =
-  NCBI.search(~s("timeless"[Gene Name] AND insects[Organism]), db: "protein", retmax: 200)
-
-{web_env, query_key}
-```
-
-```elixir
-{:ok, fasta} = NCBI.fetch(webenv: web_env, query_key: query_key, db: "protein", retmax: 200)
-fasta
-```
-
-```elixir
-File.write(notebook_path <> "result.fasta", fasta)
-```
-
-<!-- livebook:{"branch_parent_index":0} -->
-
-## Download from Gene id
-
 ```elixir
 defmodule Runner do
   def download_sequence(gene_id, :nucleotid) do
@@ -86,13 +62,79 @@ defmodule Runner do
 end
 ```
 
+<!-- livebook:{"branch_parent_index":0} -->
+
+## Download from Search
+
 ```elixir
-fastas = Runner.download_sequence("113500526", :nucleotid)
+{:ok, json, {web_env, query_key, _ids}} =
+  NCBI.search(~s("timeless"[Gene Name] AND insects[Organism]), db: "protein", retmax: 200)
+
+{web_env, query_key}
 ```
 
 ```elixir
-fastas = Runner.download_sequence("113500526", :protein)
+{:ok, fasta} = NCBI.fetch(webenv: web_env, query_key: query_key, db: "protein", retmax: 200)
+fasta
 ```
+
+```elixir
+File.write(notebook_path <> "result.fasta", fasta)
+```
+
+<!-- livebook:{"branch_parent_index":0} -->
+
+## Download Nucleotid from Gene ID
+
+```elixir
+gene_id = "113500526"
+downloaded_fastas = Runner.download_sequence(gene_id, :nucleotid)
+```
+
+```elixir
+do_filter = true
+filter_fn = fn entry -> !String.contains?(entry.meta, "whole genome") end
+
+fastas =
+  if do_filter do
+    downloaded_fastas |> Enum.filter(filter_fn)
+  else
+    downloaded_fastas
+  end
+```
+
+```elixir
+fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
+File.write("#{notebook_path}downloads/#gene2nuc_#{gene_id}.fasta", fasta_string)
+```
+
+<!-- livebook:{"branch_parent_index":0} -->
+
+## Download Protein from Gene ID
+
+```elixir
+gene_id = "113500526"
+downloaded_fastas = Runner.download_sequence(gene_id, :protein)
+```
+
+```elixir
+do_filter = true
+filter_fn = fn entry -> !String.contains?(entry.meta, "whole genome") end
+
+fastas =
+  if do_filter do
+    downloaded_fastas |> Enum.filter(filter_fn)
+  else
+    downloaded_fastas
+  end
+```
+
+```elixir
+fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
+File.write("#{notebook_path}downloads/#gene2prot_#{gene_id}.fasta", fasta_string)
+```
+
+## TODO
 
 ```elixir
 {:ok, agent} = Agent.start_link(fn -> [] end)
