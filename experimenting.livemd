@@ -66,14 +66,14 @@ defmodule Runner do
 
     opts = Keyword.merge([webenv: web_env, query_key: query_key], opts)
     {:ok, fasta_all} = NCBI.fetch(opts)
-
     fasta_all
-    |> String.trim("\n")
-    |> String.split("\n\n")
-    |> Enum.map(fn fasta ->
-      {:ok, parse} = Fasta.parse(fasta)
-      parse
-    end)
+    # fasta_all
+    # |> String.trim("\n")
+    # |> String.split("\n\n")
+    # |> Enum.map(fn fasta ->
+    #   {:ok, parse} = Fasta.parse(fasta)
+    #   parse
+    # end)
   end
 end
 ```
@@ -97,8 +97,9 @@ downloaded_fastas =
   Runner.download_sequence(
     query,
     :search,
-    db: "protein",
-    retmax: 200
+    db: "nuccore",
+    retmax: 20,
+    timout: 50000
   )
 ```
 
@@ -116,8 +117,12 @@ fastas =
 
 ```elixir
 file_name = Kino.Input.read(kino_file_name)
-fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
-File.write("#{notebook_path}downloads/#{file_name}", fasta_string)
+# fasta_string = Enum.map(fastas, fn fasta -> Fasta.to_string(fasta) end) |> Enum.join("\n")
+File.write("#{notebook_path}downloads/#{file_name}", fastas)
+```
+
+```elixir
+fastas |> length()
 ```
 
 <!-- livebook:{"branch_parent_index":0} -->
@@ -151,7 +156,7 @@ File.write("#{notebook_path}downloads/gene2nuc_#{gene_id}.fasta", fasta_string)
 ## Protein from Gene ID
 
 ```elixir
-gene_id = "113500526"
+gene_id = "105267484"
 downloaded_fastas = Runner.download_sequence(gene_id, :protein)
 ```
 
